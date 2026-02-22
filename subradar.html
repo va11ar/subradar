@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SubRadar — Reddit Feed Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e0f; --surface: #161618; --surface2: #1e1e21; --border: #2a2a2e;
+    --text: #e8e8ea; --muted: #6b6b72; --accent: #ff4500; --accent2: #ff8c69; --radius: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+  header { border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; background: rgba(14,14,15,0.95); backdrop-filter: blur(12px); z-index: 100; }
+  .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .header-sub { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+  .main { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+  .config { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 28px; }
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 600px) { .config-grid { grid-template-columns: 1fr; } }
+  .field label { display: block; font-family: 'DM Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .field textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.82rem; padding: 10px 12px; resize: vertical; min-height: 90px; outline: none; transition: border-color 0.2s; }
+  .field textarea:focus { border-color: var(--accent); }
+  .hint { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-top: 5px; }
+  .fetch-btn { margin-top: 20px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 11px 28px; font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+  .fetch-btn:hover { background: #e03d00; }
+  .fetch-btn:active { transform: scale(0.98); }
+  .fetch-btn:disabled { background: var(--muted); cursor: not-allowed; }
+  .reset-btn { margin-top: 20px; margin-left: 10px; background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 20px; font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: color 0.2s, border-color 0.2s; }
+  .reset-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .status-bar { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .status-dot.loading { background: #ffd700; animation: pulse 1s infinite; }
+  .status-dot.done { background: #4caf50; }
+  .status-dot.error { background: var(--accent); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .subreddit-section { margin-bottom: 40px; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .subreddit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .subreddit-name { font-size: 1.1rem; font-weight: 800; }
+  .subreddit-name a { color: var(--accent2); text-decoration: none; }
+  .subreddit-name a:hover { text-decoration: underline; }
+  .post-count { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 99px; }
+  .section-label { font-family: 'DM Mono', monospace; font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin: 16px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .section-label.sticky-label { color: #ffd700; }
+  .cards { display: grid; gap: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; padding-right: 40px; cursor: pointer; text-decoration: none; color: inherit; display: block; transition: border-color 0.15s, background 0.15s, transform 0.1s; position: relative; }
+  .card:hover { border-color: #444; background: var(--surface2); transform: translateX(2px); }
+  .card.sticky { border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.04); }
+  .card.sticky:hover { border-color: #ffd700; }
+  .card.highlighted { border-color: var(--accent); background: rgba(255,69,0,0.07); box-shadow: 0 0 0 1px rgba(255,69,0,0.15); }
+  .card.highlighted::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
+  .card-top { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .card-title { font-size: 0.9rem; font-weight: 600; line-height: 1.4; flex: 1; }
+  .card-desc { font-size: 0.78rem; color: var(--muted); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-meta { display: flex; gap: 12px; margin-top: 8px; font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); flex-wrap: wrap; }
+  .badge { flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 3px; margin-top: 2px; }
+  .badge-sticky { color: #ffd700; background: rgba(255,215,0,0.1); border: 1px solid rgba(255,215,0,0.25); }
+  .badge-match { color: var(--accent); background: rgba(255,69,0,0.1); border: 1px solid rgba(255,69,0,0.25); }
+  .card.starred { border-color: rgba(100,180,255,0.4); background: rgba(100,180,255,0.05); }
+  .card.starred:hover { border-color: rgba(100,180,255,0.8); }
+  .card.starred::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #64b4ff; }
+  .badge-starred { color: #64b4ff; background: rgba(100,180,255,0.1); border: 1px solid rgba(100,180,255,0.25); }
+  .star-btn { position: absolute; top: 12px; right: 12px; background: none; border: none; cursor: pointer; font-size: 1.1rem; opacity: 1; transition: opacity 0.15s, transform 0.15s; line-height: 1; padding: 2px; z-index: 2; color: #4a4a52; }
+  .star-btn:hover { opacity: 1; transform: scale(1.2); color: #c0c0cc; }
+  .card.starred .star-btn { opacity: 1; color: #64b4ff; }
+  .card.seen:hover { opacity: 0.75; }
+  .badge-seen { color: #4caf50; background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.25); }
+  .matched-keywords { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .kw-tag { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--accent2); background: rgba(255,140,105,0.08); border: 1px solid rgba(255,140,105,0.2); padding: 1px 6px; border-radius: 3px; }
+  .error-card { background: rgba(255,69,0,0.06); border: 1px solid rgba(255,69,0,0.2); border-radius: var(--radius); padding: 14px 16px; font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--accent2); line-height: 1.6; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+  .empty p { font-family: 'DM Mono', monospace; font-size: 0.78rem; }
+  .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius); height: 80px; margin-bottom: 8px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">Sub<span>Radar</span></div>
+    <div class="header-sub">Reddit Feed Monitor</div>
+  </div>
+</header>
+<div class="main">
+  <div class="config">
+    <div class="config-grid">
+      <div class="field">
+        <label>Subreddits</label>
+        <textarea id="subreddits" placeholder="gamedev&#10;webdev&#10;SideProject">gamedev
+webdev
+SideProject</textarea>
+        <div class="hint">One per line, without r/</div>
+      </div>
+      <div class="field">
+        <label>Keywords to highlight</label>
+        <textarea id="keywords" placeholder="hiring&#10;feedback&#10;launch&#10;free"></textarea>
+        <div class="hint">One per line — matching posts get an orange frame</div>
+      </div>
+    </div>
+    <button class="fetch-btn" id="fetchBtn" onclick="fetchAll()">Fetch Posts</button>
+    <button class="reset-btn" onclick="resetStorage()">Reset Storage</button>
+  </div>
+  <div id="statusBar" class="status-bar" style="display:none">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText"></span>
+  </div>
+  <div id="results">
+    <div class="empty">
+      <div class="empty-icon">📡</div>
+      <p>Enter subreddits above and hit Fetch Posts</p>
+    </div>
+  </div>
+</div>
+<script>
+// Visited posts tracking
+function getVisited() {
+  try { return new Set(JSON.parse(localStorage.getItem('subradar_visited')||'[]')); } catch(e) { return new Set(); }
+}
+function markVisited(url) {
+  const v = getVisited();
+  v.add(url);
+  const arr = Array.from(v).slice(-5000);
+  localStorage.setItem('subradar_visited', JSON.stringify(arr));
+}
+
+// Starred posts tracking — stored as { url, sub, title, permalink, score, comments, created_utc }
+function getStarred() {
+  try { return JSON.parse(localStorage.getItem('subradar_starred')||'[]'); } catch(e) { return []; }
+}
+function isStarred(url) {
+  return getStarred().some(s=>s.url===url);
+}
+function toggleStar(postData) {
+  const starred = getStarred();
+  const idx = starred.findIndex(s=>s.url===postData.url);
+  if (idx > -1) {
+    starred.splice(idx, 1);
+  } else {
+    starred.push(postData);
+  }
+  localStorage.setItem('subradar_starred', JSON.stringify(starred));
+  return idx === -1; // true = now starred
+}
+function observeCards(container) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const card = entry.target;
+        const url = card.dataset.url;
+        if (url) {
+          markVisited(url);
+          // Don't visually dim yet — dimming happens on next fetch
+        }
+        observer.unobserve(card);
+      }
+    });
+  }, { threshold: 0.5 }); // card must be 50% visible to count
+  container.querySelectorAll('a.card:not(.seen):not(.starred)').forEach(card => observer.observe(card));
+}
+
+function handleStar(e, btn) {
+  e.preventDefault();
+  e.stopPropagation();
+  const card = btn.closest('a.card');
+  const url = card.dataset.url;
+  const postData = {
+    url,
+    sub: card.dataset.sub,
+    title: card.dataset.title,
+    permalink: card.dataset.permalink,
+    score: parseInt(card.dataset.score)||0,
+    comments: parseInt(card.dataset.comments)||0,
+    created: parseInt(card.dataset.created)||0
+  };
+  const nowStarred = toggleStar(postData);
+  // Update card appearance immediately
+  card.classList.toggle('starred', nowStarred);
+  btn.textContent = nowStarred ? '⭐' : '☆';
+  btn.title = nowStarred ? 'Unwatch' : 'Watch this post';
+  // Update badge
+  const existingBadge = card.querySelector('.badge-starred');
+  if (nowStarred && !existingBadge) {
+    const firstBadge = card.querySelector('.card-top');
+    firstBadge.insertAdjacentHTML('afterbegin', '<span class="badge badge-starred">⭐ Watching</span>');
+  } else if (!nowStarred && existingBadge) {
+    existingBadge.remove();
+  }
+  // Remove seen class if starring
+  if (nowStarred) card.classList.remove('seen');
+}
+
+// Build a fake post object from stored starred data for rendering
+function makePostFromStored(s) {
+  return { data: { title: s.title, selftext: '', permalink: s.permalink, subreddit: s.sub, score: s.score, num_comments: s.comments, created_utc: s.created, stickied: false } };
+}
+
+function resetStorage() {
+  if (!confirm('Clear all seen/visited history AND watched posts? Your subreddits and keywords will be kept.')) return;
+  localStorage.removeItem('subradar_visited');
+  localStorage.removeItem('subradar_starred');
+  document.getElementById('results').innerHTML = '<div class="empty"><div class="empty-icon">📡</div><p>Storage cleared. Fetch posts again.</p></div>';
+  setStatus('done', 'Storage cleared.');
+}
+
+// Persist inputs to localStorage
+function saveInputs() {
+  localStorage.setItem('subradar_subs', document.getElementById('subreddits').value);
+  localStorage.setItem('subradar_keywords', document.getElementById('keywords').value);
+}
+function loadInputs() {
+  const subs = localStorage.getItem('subradar_subs');
+  const kws = localStorage.getItem('subradar_keywords');
+  if (subs !== null) document.getElementById('subreddits').value = subs;
+  if (kws !== null) document.getElementById('keywords').value = kws;
+}
+document.getElementById('subreddits').addEventListener('input', saveInputs);
+document.getElementById('keywords').addEventListener('input', saveInputs);
+loadInputs();
+
+// Mark post as visited on click and dim it immediately (skip starred)
+document.getElementById('results').addEventListener('click', function(e) {
+  if (e.target.closest('.star-btn')) return;
+  const card = e.target.closest('a.card');
+  if (!card || card.classList.contains('starred')) return;
+  const url = card.dataset.url;
+  if (url) {
+    markVisited(url);
+    card.classList.add('seen');
+  }
+});
+
+function getKeywords() {
+  return document.getElementById('keywords').value.split('\n').map(k=>k.trim().toLowerCase()).filter(Boolean);
+}
+function getSubreddits() {
+  return document.getElementById('subreddits').value.split('\n').map(s=>s.trim().replace(/^r\//i,'').replace(/\//g,'')).filter(Boolean);
+}
+function matchKeywords(text, keywords) {
+  if (!keywords.length) return [];
+  return keywords.filter(kw => text.toLowerCase().includes(kw));
+}
+function timeAgo(utc) {
+  const diff = Math.floor(Date.now()/1000) - utc;
+  if (diff < 60) return diff+'s ago';
+  if (diff < 3600) return Math.floor(diff/60)+'m ago';
+  if (diff < 86400) return Math.floor(diff/3600)+'h ago';
+  return Math.floor(diff/86400)+'d ago';
+}
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function setStatus(type, text) {
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('statusDot').className = 'status-dot ' + type;
+  document.getElementById('statusText').textContent = text;
+}
+function renderCard(post, keywords, visited, forceStarred) {
+  const d = post.data;
+  const title = d.title || '(no title)';
+  const desc = d.selftext ? d.selftext.slice(0,200) : '';
+  const url = 'https://reddit.com' + d.permalink;
+  const matched = matchKeywords(title + ' ' + (d.selftext||''), keywords);
+  const starred = forceStarred || isStarred(url);
+  const seen = !starred && visited.has(url); // starred posts are never seen
+  const cls = 'card' + (d.stickied?' sticky':'') + (starred?' starred':'') + (matched.length?' highlighted':'') + (seen?' seen':'');
+  const badges = (d.stickied?'<span class="badge badge-sticky">📌 Pinned</span>':'')
+    + (starred?'<span class="badge badge-starred">⭐ Watching</span>':'')
+    + (matched.length?'<span class="badge badge-match">🔍 Match</span>':'')
+    + (seen?'<span class="badge badge-seen">✓ Seen</span>':'');
+  const kwTags = matched.map(k=>'<span class="kw-tag">'+esc(k)+'</span>').join('');
+  const starIcon = starred ? '⭐' : '☆';
+  return '<a class="'+cls+'" href="'+esc(url)+'" target="_blank" rel="noopener" data-url="'+esc(url)+'" data-sub="'+esc(d.subreddit||'')+'" data-title="'+esc(title)+'" data-permalink="'+esc(d.permalink||'')+'" data-score="'+(d.score||0)+'" data-comments="'+(d.num_comments||0)+'" data-created="'+(d.created_utc||0)+'">'
+    +'<button class="star-btn" title="'+(starred?'Unwatch':'Watch this post')+'" onclick="handleStar(event, this)">'+starIcon+'</button>'
+    +'<div class="card-top">'+badges+'<div class="card-title">'+esc(title)+'</div></div>'
+    +(desc?'<div class="card-desc">'+esc(desc)+'</div>':'')
+    +(kwTags?'<div class="matched-keywords">'+kwTags+'</div>':'')
+    +'<div class="card-meta">'
+    +'<span>↑ '+(d.score||0)+'</span>'
+    +'<span>💬 '+(d.num_comments||0)+'</span>'
+    +'<span>'+timeAgo(d.created_utc)+'</span>'
+    +(d.author?'<span>u/'+esc(d.author)+'</span>':'')
+    +'</div></a>';
+}
+async function fetchSubreddit(sub) {
+  // Fetch /new/ for recent chronological posts
+  const newUrl = 'https://www.reddit.com/r/'+sub+'/new/.json?limit=50&raw_json=1';
+  // Fetch regular listing for stickied posts (stickied only appear in hot/default)
+  const hotUrl = 'https://www.reddit.com/r/'+sub+'/.json?limit=10&raw_json=1';
+  const [newRes, hotRes] = await Promise.all([
+    fetch(newUrl, { headers: { 'Accept': 'application/json' } }),
+    fetch(hotUrl, { headers: { 'Accept': 'application/json' } })
+  ]);
+  if (!newRes.ok) throw new Error('HTTP '+newRes.status);
+  const newJson = await newRes.json();
+  if (!newJson || !newJson.data || !newJson.data.children) throw new Error('Unexpected response');
+  const stickied = hotRes.ok ? await hotRes.json().then(j => (j.data.children||[]).filter(p=>p.data.stickied)) : [];
+  return { stickied, recent: newJson.data.children.filter(p=>!p.data.stickied) };
+}
+async function fetchAll() {
+  const subs = getSubreddits();
+  const keywords = getKeywords();
+  const btn = document.getElementById('fetchBtn');
+  const resultsEl = document.getElementById('results');
+  if (!subs.length) { alert('Enter at least one subreddit.'); return; }
+  btn.disabled = true; btn.textContent = 'Fetching…';
+  setStatus('loading', 'Fetching '+subs.length+' subreddit(s)…');
+  resultsEl.innerHTML = subs.map(()=>'<div style="margin-bottom:32px"><div class="skeleton" style="height:24px;width:180px;margin-bottom:16px"></div>'+[...Array(4)].map(()=>'<div class="skeleton"></div>').join('')+'</div>').join('');
+  const sections = [];
+  for (const sub of subs) {
+    setStatus('loading', 'Fetching r/'+sub+'…');
+    try {
+      const { stickied, recent: rawRecent } = await fetchSubreddit(sub);
+      const recent = rawRecent
+        .sort((a,b)=>b.data.created_utc - a.data.created_utc)
+        .slice(0,15);
+      const visited = getVisited();
+      const allStarred = getStarred();
+      const subStarred = allStarred.filter(s=>s.sub.toLowerCase()===sub.toLowerCase());
+      // Split recent into unseen and seen, seen go to bottom
+      // Starred posts are excluded from seen/unseen lists (they have their own section)
+      const starredUrls = new Set(allStarred.map(s=>s.url));
+      const unseenRecent = recent.filter(p=>{ const u='https://reddit.com'+p.data.permalink; return !visited.has(u) && !starredUrls.has(u); });
+      const seenRecent = recent.filter(p=>{ const u='https://reddit.com'+p.data.permalink; return visited.has(u) && !starredUrls.has(u); });
+      // Starred posts that also appear in recent get updated live data
+      const starredInRecent = recent.filter(p=>starredUrls.has('https://reddit.com'+p.data.permalink));
+      // Starred posts not in recent use stored data
+      const starredNotInRecent = subStarred.filter(s=>!recent.some(p=>'https://reddit.com'+p.data.permalink===s.url));
+      let html = '<div class="subreddit-section">'
+        +'<div class="subreddit-header">'
+        +'<div class="subreddit-name"><a href="https://reddit.com/r/'+sub+'" target="_blank">r/'+sub+'</a></div>'
+        +'<span class="post-count">'+stickied.length+' pinned · '+recent.length+' recent'+(subStarred.length?' · '+subStarred.length+' watching':'')+'</span>'
+        +'</div>';
+      if (stickied.length) html += '<div class="section-label sticky-label">📌 Pinned</div><div class="cards">'+stickied.map(p=>renderCard(p,keywords,visited,false)).join('')+'</div>';
+      if (starredInRecent.length || starredNotInRecent.length) {
+        html += '<div class="section-label" style="color:#64b4ff">⭐ Watching</div><div class="cards">'
+          + starredInRecent.map(p=>renderCard(p,keywords,visited,true)).join('')
+          + starredNotInRecent.map(s=>renderCard(makePostFromStored(s),keywords,visited,true)).join('')
+          +'</div>';
+      }
+      if (unseenRecent.length) html += '<div class="section-label">Recent posts</div><div class="cards">'+unseenRecent.map(p=>renderCard(p,keywords,visited,false)).join('')+'</div>';
+      if (seenRecent.length) html += '<div class="section-label">Already seen</div><div class="cards">'+seenRecent.map(p=>renderCard(p,keywords,visited,false)).join('')+'</div>';
+      if (!stickied.length && !recent.length) html += '<div class="error-card">No posts found.</div>';
+      html += '</div>';
+      sections.push(html);
+    } catch(err) {
+      sections.push('<div class="subreddit-section">'
+        +'<div class="subreddit-header"><div class="subreddit-name">r/'+esc(sub)+'</div></div>'
+        +'<div class="error-card">Failed to load: '+esc(err.message)+'</div>'
+        +'</div>');
+    }
+  }
+  resultsEl.innerHTML = sections.join('');
+  // Start observing unseen cards for viewport entry
+  observeCards(resultsEl);
+  // Also mark seen on mouseover as fallback
+  resultsEl.querySelectorAll('a.card:not(.seen):not(.starred)').forEach(card => {
+    card.addEventListener('mouseenter', function() {
+      const url = this.dataset.url;
+      if (url) markVisited(url);
+    }, { once: true });
+  });
+  const total = resultsEl.querySelectorAll('.card').length;
+  const hi = resultsEl.querySelectorAll('.card.highlighted').length;
+  setStatus('done', 'Loaded '+total+' posts across '+subs.length+' subreddit(s)'+(hi?' · '+hi+' keyword match(es)':''));
+  btn.disabled = false; btn.textContent = 'Fetch Posts';
+}
+</script>
+</body>
+</html>
