@@ -1,15 +1,15 @@
-#Introduction:
+# Introduction:
 
 SubRadar is a free, local web app that allows you to view the latest pinned topics and the 15 most recent posts in the subreddits you pick. It also allows highlighting of posts that contain keywords that you pick. 
 
-#Features:
+# Features:
 * View all targeted subreddits in one single page. 
 * Look at both pinned and newest posts per subreddit at the same time.
 * Star/Unstar posts so you can keep track of them to reply to later or check when they get updated.
 * Track what you saw and didn't see (basically anything the mouse goes over or crosses the mid section of the page).
 * Reset all data to start fresh (i.e. forgets what you read and didn't read).
 
-#How to use:
+# How to use:
 1. Clone or download the project on your device. 
 2. Double click the .html file. 
 3. In the subreddits list, put the exact names of the subreddits you want to track
